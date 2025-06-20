@@ -217,14 +217,7 @@
     <!-- Flagged Comments Tab -->
     <div v-if="activeTab === 'comments'" class="card">
       <div class="card-header bg-light">
-        <div class="d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Flagged Comments</h5>
-          <div class="d-flex gap-2">
-            <button @click="updateBadWordsList" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-pencil me-1"></i>Edit Bad Words List
-            </button>
-          </div>
-        </div>
+        <h5 class="mb-0">Flagged Comments</h5>
       </div>
       <div class="card-body p-0">
         <div v-if="loading.comments" class="text-center py-5">
@@ -385,8 +378,6 @@
         </div>
       </div>
     </div>
-
-<!-- Modal removed as it's no longer needed -->
   </div>
 </template>
 
@@ -505,9 +496,6 @@ const promoteToAdmin = async (userId) => {
     }
   }
 };
-
-// Methods for bad words management
-// Removed updateBadWordsList function as it's no longer needed
 
 const saveBadWordsList = async () => {
   savingBadWords.value = true;

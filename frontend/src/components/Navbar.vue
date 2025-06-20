@@ -1,36 +1,38 @@
 <template>
   <nav class="navbar navbar-expand-lg bg-body-tertiary shadow-sm">
     <div class="container">
-      <RouterLink class="navbar-brand fw-bold" to="/">MyBlog</RouterLink>
-
+      <RouterLink class="navbar-brand fw-bold" to="/">
+        <img src="../../public/skibidibooklogo.png" alt="" style="width: 50px; height: 50px; border-radius: 50%;" />
+      </RouterLink>
       <ul class="navbar-nav ms-auto align-items-center">
         <li v-if="!authStore.isAuthenticated" class="nav-item">
-          <RouterLink class="nav-link" to="/login">Login</RouterLink>
+          <RouterLink class="nav-btn nav-btn-outline" to="/login">Login</RouterLink>
         </li>
-        <li v-if="!authStore.isAuthenticated" class="nav-item">
-          <RouterLink class="btn btn-primary ms-2" to="/register">Sign Up</RouterLink>
+        <li v-if="!authStore.isAuthenticated" class="nav-item ms-2">
+          <RouterLink class="nav-btn nav-btn-primary" to="/register">Sign Up</RouterLink>
         </li>
 
         <template v-else>
           <li class="nav-item me-3">
-            <RouterLink to="/post/new" class="btn btn-success btn-sm">
-              <i class="bi bi-pencil-square me-1"></i>Write
+            <RouterLink to="/post/new" class="nav-btn nav-btn-success">
+              <i class="bi bi-plus-lg"></i>
+              <span>Write</span>
             </RouterLink>
           </li>
           
-          <li class="nav-item dropdown me-3">
-            <button class="btn position-relative" data-bs-toggle="dropdown">
-              <i class="bi bi-bell fs-5"></i>
-              <span v-if="unread" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ unread }}</span>
+          <li class="nav-item me-3">
+            <button class="nav-btn nav-btn-icon position-relative" data-bs-toggle="dropdown">
+              <i class="bi bi-bell"></i>
+              <span v-if="unread" class="notification-badge">{{ unread }}</span>
             </button>
             <NotificationDropdown />
           </li>
 
           <li class="nav-item dropdown">
-            <button class="btn d-flex align-items-center" data-bs-toggle="dropdown">
+            <button class="nav-btn nav-btn-user" data-bs-toggle="dropdown">
               <img :src="authStore.profile?.avatar || '/default-avatar.png'"
-                   class="rounded-circle me-2" width="32" height="32" />
-              <span class="fw-medium">{{ authStore.profile?.username || 'User' }}</span>
+                   class="user-avatar" />
+              <span class="user-name">{{ getUserName() }}</span>
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li><RouterLink class="dropdown-item" :to="`/profile/${authStore.user.uid}`">
@@ -72,6 +74,17 @@ const router = useRouter();
 
 const unread = ref(0);
 
+// Hàm lấy tên người dùng từ profile
+const getUserName = () => {
+  if (!authStore.profile) return 'User';
+  
+  // Ưu tiên theo thứ tự: username > displayName > name > email
+  return authStore.profile.username || 
+         authStore.profile.displayName || 
+         authStore.profile.name || 
+         (authStore.user?.email ? authStore.user.email.split('@')[0] : 'User');
+};
+
 onMounted(() => {
   const unsubscribe = onAuthStateChanged(auth, (user) => {
     if (user) {
@@ -101,3 +114,120 @@ const logout = async () => {
   router.push('/');
 };
 </script>
+
+<style scoped>
+/* Base button style */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+/* Button variants */
+.nav-btn-outline {
+  color: #0d6efd;
+  background-color: transparent;
+  border: 1px solid #0d6efd;
+}
+
+.nav-btn-outline:hover {
+  background-color: rgba(13, 110, 253, 0.1);
+  color: #0d6efd;
+}
+
+.nav-btn-primary {
+  background-color: #0d6efd;
+  color: white;
+}
+
+.nav-btn-primary:hover {
+  background-color: #0b5ed7;
+  color: white;
+}
+
+.nav-btn-success {
+  background-color: #198754;
+  color: white;
+}
+
+.nav-btn-success:hover {
+  background-color: #157347;
+  color: white;
+}
+
+/* Icon button */
+.nav-btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.nav-btn-icon:hover {
+  background-color: #e9ecef;
+  color: #212529;
+}
+
+.nav-btn-icon i {
+  font-size: 1.2rem;
+}
+
+/* User button */
+.nav-btn-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 30px;
+  background-color: #f8f9fa;
+  transition: all 0.2s ease;
+}
+
+.nav-btn-user:hover {
+  background-color: #e9ecef;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #212529;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Notification badge */
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #dc3545;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+</style>

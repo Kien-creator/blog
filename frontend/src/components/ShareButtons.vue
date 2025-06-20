@@ -1,13 +1,13 @@
 <template>
-  <div class="btn-group">
-    <button class="btn btn-sm btn-outline-primary" @click="share('facebook')">
+  <div class="share-buttons">
+    <button class="share-btn" @click="share('facebook')" title="Share on Facebook">
       <i class="bi bi-facebook"></i>
     </button>
-    <button class="btn btn-sm btn-outline-primary" @click="share('twitter')">
-      <i class="bi bi-x"></i>
+    <button class="share-btn" @click="share('twitter')" title="Share on Twitter">
+      <i class="bi bi-twitter-x"></i>
     </button>
-    <button class="btn btn-sm btn-outline-primary" @click="copyLink">
-      <i class="bi bi-link"></i>
+    <button class="share-btn" @click="copyLink" title="Copy link">
+      <i class="bi bi-link-45deg"></i>
     </button>
   </div>
 </template>
@@ -39,3 +39,36 @@ const copyLink = () => {
   alert('Link copied to clipboard!');
 };
 </script>
+
+<style scoped>
+.share-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: none;
+  background-color: #f8f9fa;
+  color: #6c757d;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.share-btn:hover {
+  background-color: #e9ecef;
+}
+
+.share-btn:first-child:hover {
+  color: #3b5998;
+}
+
+.share-btn:nth-child(2):hover {
+  color: #1da1f2;
+}
+</style>

@@ -1,5 +1,6 @@
 const express = require('express');
 const { admin, db } = require('../config/firebase');
+const { verifyToken } = require('../middleware/auth');
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
@@ -143,6 +144,53 @@ router.get('/profile', async (req, res) => {
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(401).json({ message: 'Invalid token' });
+  }
+});
+
+// Update user profile
+router.put('/profile', verifyToken, async (req, res) => {
+  try {
+    const { username, displayName, bio } = req.body;
+    const uid = req.user.uid;
+    
+    // Validate input
+    if (username && username.length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters' });
+    }
+    
+    if (displayName && displayName.length < 3) {
+      return res.status(400).json({ message: 'Display name must be at least 3 characters' });
+    }
+    
+    // Check if username is already taken (if changing username)
+    if (username) {
+      const userRef = db.collection('users').doc(uid);
+      const userDoc = await userRef.get();
+      
+      if (userDoc.exists && userDoc.data().username !== username) {
+        const usernameQuery = await db.collection('users')
+          .where('username', '==', username)
+          .get();
+          
+        if (!usernameQuery.empty) {
+          return res.status(400).json({ message: 'Username already taken' });
+        }
+      }
+    }
+    
+    // Update profile
+    const updateData = {};
+    if (username) updateData.username = username;
+    if (displayName) updateData.displayName = displayName;
+    if (bio !== undefined) updateData.bio = bio;
+    updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    
+    await db.collection('users').doc(uid).update(updateData);
+    
+    res.json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Failed to update profile' });
   }
 });
 

@@ -1,23 +1,25 @@
 <template>
-  <div class="d-flex align-items-center gap-2">
+  <div class="reaction-buttons">
     <button 
-      class="btn btn-sm" 
-      :class="{ 'btn-success': userReaction === 'like', 'btn-outline-success': userReaction !== 'like' }"
+      class="reaction-btn" 
+      :class="{ 'active': userReaction === 'like' }"
       @click="toggleLike"
       :disabled="!authStore.isAuthenticated"
+      title="Like"
     >
       <i class="bi bi-hand-thumbs-up"></i>
-      <span class="ms-1">{{ likes }}</span>
+      <span>{{ likes }}</span>
     </button>
     
     <button 
-      class="btn btn-sm" 
-      :class="{ 'btn-danger': userReaction === 'dislike', 'btn-outline-danger': userReaction !== 'dislike' }"
+      class="reaction-btn" 
+      :class="{ 'active': userReaction === 'dislike' }"
       @click="toggleDislike"
       :disabled="!authStore.isAuthenticated"
+      title="Dislike"
     >
       <i class="bi bi-hand-thumbs-down"></i>
-      <span class="ms-1">{{ dislikes }}</span>
+      <span>{{ dislikes }}</span>
     </button>
   </div>
 </template>
@@ -99,3 +101,39 @@ const toggleDislike = async () => {
   }
 };
 </script>
+
+<style scoped>
+.reaction-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reaction-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #6c757d;
+  transition: all 0.2s;
+  background-color: #f8f9fa;
+}
+
+.reaction-btn:hover {
+  background-color: #e9ecef;
+}
+
+.reaction-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.reaction-btn.active {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+</style>

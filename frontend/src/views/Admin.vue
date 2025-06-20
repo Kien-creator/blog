@@ -91,6 +91,11 @@
           <i class="bi bi-people me-1"></i>User Management
         </button>
       </li>
+      <li class="nav-item">
+        <button class="nav-link" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
+          <i class="bi bi-gear me-1"></i>Settings
+        </button>
+      </li>
     </ul>
 
     <!-- Pending Posts Tab -->
@@ -209,14 +214,7 @@
     <!-- Flagged Comments Tab -->
     <div v-if="activeTab === 'comments'" class="card">
       <div class="card-header bg-light">
-        <div class="d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Flagged Comments</h5>
-          <div class="d-flex gap-2">
-            <button @click="updateBadWordsList" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-pencil me-1"></i>Edit Bad Words List
-            </button>
-          </div>
-        </div>
+        <h5 class="mb-0">Flagged Comments</h5>
       </div>
       <div class="card-body p-0">
         <div v-if="loading.comments" class="text-center py-5">
@@ -240,7 +238,7 @@
             <tbody>
               <tr v-for="comment in flaggedComments" :key="comment.id">
                 <td>
-                  <div class="fw-medium">{{ highlightBadWords(comment.content) }}</div>
+                  <div v-html="highlightBadWords(comment.content)" class="fw-medium"></div>
                 </td>
                 <td>{{ comment.authorName }}</td>
                 <td>
@@ -332,21 +330,47 @@
       </div>
     </div>
 
-    <!-- Bad Words Modal -->
-    <div class="modal fade" id="badWordsModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Edit Bad Words List</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <p class="text-muted">Add words that should be flagged in comments (one per line)</p>
-            <textarea v-model="badWordsText" class="form-control" rows="10"></textarea>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="saveBadWordsList">Save Changes</button>
+    <!-- Settings Tab -->
+    <div v-if="activeTab === 'settings'" class="card">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">Content Settings</h5>
+      </div>
+      <div class="card-body">
+        <div v-if="loading.settings" class="text-center py-5">
+          <div class="spinner-border" role="status"></div>
+        </div>
+        <div v-else>
+          <div class="mb-4">
+            <h6 class="mb-3">Bad Words Filter</h6>
+            <p class="text-muted">
+              Words in this list will be automatically flagged in comments and posts.
+              Comments containing these words will be sent for review.
+            </p>
+            
+            <div class="card bg-light">
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                  <span v-for="word in badWords" :key="word" class="badge bg-danger">
+                    {{ word }}
+                  </span>
+                  <span v-if="badWords.length === 0" class="text-muted">No bad words defined</span>
+                </div>
+                <form @submit.prevent="saveBadWordsList">
+                  <div class="mb-3">
+                    <label for="badWordsInput" class="form-label">Edit Bad Words List (one word per line)</label>
+                    <textarea 
+                      id="badWordsInput"
+                      v-model="badWordsText" 
+                      class="form-control" 
+                      rows="5"
+                      placeholder="Enter bad words here, one per line"></textarea>
+                  </div>
+                  <button type="submit" class="btn btn-primary" :disabled="savingBadWords">
+                    <i class="bi bi-save me-1"></i>{{ savingBadWords ? 'Saving...' : 'Save Changes' }}
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -359,7 +383,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 import { db } from '@/firebase';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
 import axios from 'axios';
 
 const router = useRouter();
@@ -368,6 +392,7 @@ const activeTab = ref('pending');
 const userSearch = ref('');
 const badWordsText = ref('');
 const badWords = ref([]);
+const savingBadWords = ref(false);
 
 // Data
 const pendingPosts = ref([]);
@@ -380,7 +405,8 @@ const loading = ref({
   posts: true,
   reports: true,
   comments: true,
-  users: true
+  users: true,
+  settings: true
 });
 
 // Stats
@@ -412,6 +438,7 @@ const formatDate = (timestamp) => {
 const approvePost = async (postId) => {
   try {
     await axios.put(`/api/posts/${postId}/approve`);
+    pendingPosts.value = pendingPosts.value.filter(post => post.id !== postId);
   } catch (error) {
     console.error('Error approving post:', error);
   }
@@ -421,6 +448,7 @@ const rejectPost = async (postId) => {
   if (confirm('Are you sure you want to reject this post?')) {
     try {
       await axios.delete(`/api/posts/${postId}`);
+      pendingPosts.value = pendingPosts.value.filter(post => post.id !== postId);
     } catch (error) {
       console.error('Error rejecting post:', error);
     }
@@ -430,6 +458,11 @@ const rejectPost = async (postId) => {
 const toggleLock = async (userId, isLocked) => {
   try {
     await axios.put(`/api/users/${userId}/lock`, { isLocked });
+    const user = users.value.find(u => u.id === userId);
+    if (user) user.isLocked = isLocked;
+    
+    // Update active users count
+    stats.value.activeUsers = users.value.filter(u => !u.isLocked).length;
   } catch (error) {
     console.error('Error toggling lock:', error);
   }
@@ -439,6 +472,8 @@ const promoteToAdmin = async (userId) => {
   if (confirm('Are you sure you want to promote this user to admin?')) {
     try {
       await axios.put(`/api/users/${userId}/role`, { role: 'admin' });
+      const user = users.value.find(u => u.id === userId);
+      if (user) user.role = 'admin';
     } catch (error) {
       console.error('Error promoting user:', error);
     }
@@ -456,6 +491,7 @@ const viewReportedContent = (report) => {
 const dismissReport = async (reportId) => {
   try {
     await axios.put(`/api/reports/${reportId}/dismiss`);
+    reports.value = reports.value.filter(r => r.id !== reportId);
   } catch (error) {
     console.error('Error dismissing report:', error);
   }
@@ -470,6 +506,7 @@ const removeReportedContent = async (report) => {
         await axios.delete(`/api/comments/${report.contentId}`);
       }
       await axios.delete(`/api/reports/${report.id}`);
+      reports.value = reports.value.filter(r => r.id !== report.id);
     } catch (error) {
       console.error('Error removing content:', error);
     }
@@ -479,6 +516,7 @@ const removeReportedContent = async (report) => {
 const approveComment = async (commentId) => {
   try {
     await axios.put(`/api/comments/${commentId}/approve`);
+    flaggedComments.value = flaggedComments.value.filter(c => c.id !== commentId);
   } catch (error) {
     console.error('Error approving comment:', error);
   }
@@ -488,19 +526,15 @@ const deleteComment = async (commentId) => {
   if (confirm('Are you sure you want to delete this comment?')) {
     try {
       await axios.delete(`/api/comments/${commentId}`);
+      flaggedComments.value = flaggedComments.value.filter(c => c.id !== commentId);
     } catch (error) {
       console.error('Error deleting comment:', error);
     }
   }
 };
 
-const updateBadWordsList = () => {
-  badWordsText.value = badWords.value.join('\n');
-  const modal = new bootstrap.Modal(document.getElementById('badWordsModal'));
-  modal.show();
-};
-
 const saveBadWordsList = async () => {
+  savingBadWords.value = true;
   try {
     const newBadWords = badWordsText.value
       .split('\n')
@@ -510,10 +544,12 @@ const saveBadWordsList = async () => {
     await axios.put('/api/settings/bad-words', { words: newBadWords });
     badWords.value = newBadWords;
     
-    const modal = bootstrap.Modal.getInstance(document.getElementById('badWordsModal'));
-    modal.hide();
+    alert('Bad words list updated successfully');
   } catch (error) {
     console.error('Error saving bad words list:', error);
+    alert('Failed to update bad words list: ' + error.message);
+  } finally {
+    savingBadWords.value = false;
   }
 };
 
@@ -530,17 +566,9 @@ const highlightBadWords = (text) => {
 // Lifecycle
 onMounted(async () => {
   if (!authStore.isAdmin) {
+    alert('You do not have admin privileges');
     router.push('/');
     return;
-  }
-
-  // Load bad words list
-  try {
-    const response = await axios.get('/api/settings/bad-words');
-    badWords.value = response.data.words || [];
-  } catch (error) {
-    console.error('Error loading bad words list:', error);
-    badWords.value = [];
   }
 
   // Load pending posts
@@ -554,6 +582,18 @@ onMounted(async () => {
     pendingPosts.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     stats.value.pendingPosts = pendingPosts.value.length;
     loading.value.posts = false;
+  });
+
+  // Load users
+  const usersQuery = query(
+    collection(db, 'users'),
+    orderBy('createdAt', 'desc')
+  );
+  
+  onSnapshot(usersQuery, (snapshot) => {
+    users.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    stats.value.activeUsers = users.value.filter(user => !user.isLocked).length;
+    loading.value.users = false;
   });
 
   // Load reports
@@ -581,27 +621,32 @@ onMounted(async () => {
     loading.value.comments = false;
   });
 
-  // Load users
-  const usersQuery = query(
-    collection(db, 'users'),
-    orderBy('createdAt', 'desc')
-  );
-  
-  onSnapshot(usersQuery, (snapshot) => {
-    users.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    stats.value.activeUsers = users.value.filter(user => !user.isLocked).length;
-    loading.value.users = false;
-  });
+  // Load bad words list
+  try {
+    const response = await axios.get('/api/settings/bad-words');
+    badWords.value = response.data.words || [];
+    badWordsText.value = badWords.value.join('\n');
+    loading.value.settings = false;
+  } catch (error) {
+    console.error('Error loading bad words list:', error);
+    badWords.value = [];
+    badWordsText.value = '';
+    loading.value.settings = false;
+  }
 
-  // Get total posts count
-  const totalPostsQuery = query(collection(db, 'posts'));
-  const totalPostsSnapshot = await totalPostsQuery.get();
-  stats.value.totalPosts = totalPostsSnapshot.size;
+  // Get total posts count and views
+  try {
+    const postsSnapshot = await getDocs(collection(db, 'posts'));
+    stats.value.totalPosts = postsSnapshot.size;
+    stats.value.totalViews = postsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().views || 0), 0);
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+  }
 });
 </script>
 
 <style scoped>
 .table th, .table td {
-  padding: 1rem;
+  padding: 0.75rem;
 }
 </style>

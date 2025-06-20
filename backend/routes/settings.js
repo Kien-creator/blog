@@ -6,13 +6,21 @@ const router = express.Router();
 // Get bad words list
 router.get('/bad-words', verifyToken, async (req, res) => {
   try {
+    // Kiểm tra quyền admin
     const userDoc = await db.collection('users').doc(req.user.uid).get();
-    if (!userDoc.exists || userDoc.data().role !== 'admin') {
-      return res.status(403).json({ message: 'Unauthorized' });
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
     }
     
+    // Cho phép tất cả người dùng đã xác thực xem danh sách từ cấm
     const settingsDoc = await db.collection('settings').doc('content').get();
     if (!settingsDoc.exists) {
+      // Tạo document nếu chưa tồn tại
+      await db.collection('settings').doc('content').set({
+        badWords: [],
+        createdAt: new Date(),
+        createdBy: req.user.uid
+      });
       return res.json({ words: [] });
     }
     

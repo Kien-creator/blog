@@ -1,280 +1,235 @@
 <template>
-  <div v-if="user">
+  <div class="container py-4">
     <div class="row">
-      <!-- Profile Card -->
-      <div class="col-md-4">
-        <div class="card shadow">
+      <!-- Profile Sidebar -->
+      <div class="col-md-4 mb-4">
+        <div class="card">
           <div class="card-body text-center">
-            <div class="position-relative mb-3">
-              <img :src="user.avatar || '/default-avatar.png'" 
-                   class="rounded-circle mx-auto" 
-                   style="width: 150px; height: 150px; object-fit: cover;" 
-                   alt="Avatar">
-              
-              <div v-if="isOwnProfile" class="position-absolute bottom-0 end-0">
-                <button class="btn btn-sm btn-primary rounded-circle" 
-                        data-bs-toggle="modal" data-bs-target="#avatarModal">
-                  <i class="bi bi-camera"></i>
-                </button>
-              </div>
+            <div class="position-relative d-inline-block mb-3">
+              <img :src="profile.avatar || '/default-avatar.png'" class="rounded-circle" width="120" height="120" style="object-fit: cover;">
+              <label v-if="isOwnProfile" for="avatar-upload" class="position-absolute bottom-0 end-0 bg-white rounded-circle p-1 shadow-sm" style="cursor: pointer;">
+                <i class="bi bi-camera"></i>
+                <input id="avatar-upload" type="file" accept="image/*" class="d-none" @change="uploadAvatar">
+              </label>
             </div>
-            
-            <h4 class="mb-1">{{ user.displayName || user.username }}</h4>
-            <p class="text-muted">{{ user.email }}</p>
-            
-            <div class="d-flex justify-content-center gap-3 mb-3">
-              <div class="text-center">
-                <div class="fw-bold">{{ posts.length }}</div>
-                <div class="small text-muted">Posts</div>
-              </div>
-              <div class="text-center">
-                <div class="fw-bold">{{ totalLikes }}</div>
-                <div class="small text-muted">Likes</div>
-              </div>
-              <div class="text-center">
-                <div class="fw-bold">{{ totalViews }}</div>
-                <div class="small text-muted">Views</div>
-              </div>
+            <h5 class="mb-1">{{ profile.username || profile.displayName || 'User' }}</h5>
+            <p class="text-muted small">{{ profile.email }}</p>
+            <div class="d-flex justify-content-center gap-2 mb-3">
+              <span class="badge bg-primary">{{ profile.role || 'user' }}</span>
+              <span v-if="profile.isVerified" class="badge bg-success">Verified</span>
             </div>
-            
-            <div class="mb-3">
-              <div class="card bg-light">
-                <div class="card-body">
-                  <h6 class="card-title">About</h6>
-                  <p class="card-text">{{ user.bio || 'No bio provided' }}</p>
-                </div>
-              </div>
+            <div v-if="isOwnProfile" class="d-grid">
+              <button class="btn btn-outline-primary btn-sm" @click="editMode = !editMode">
+                <i class="bi" :class="editMode ? 'bi-x-lg' : 'bi-pencil'"></i>
+                {{ editMode ? 'Cancel Edit' : 'Edit Profile' }}
+              </button>
             </div>
-            
-            <button v-if="isOwnProfile" 
-                    class="btn btn-outline-primary w-100" 
-                    data-bs-toggle="modal" 
-                    data-bs-target="#editProfileModal">
-              <i class="bi bi-pencil me-2"></i>Edit Profile
-            </button>
           </div>
         </div>
       </div>
-      
-      <!-- Posts Section -->
+
+      <!-- Profile Content -->
       <div class="col-md-8">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h3>{{ user.displayName || user.username }}'s Posts</h3>
-          <div class="btn-group">
-            <button class="btn btn-outline-secondary" :class="{ active: sortBy === 'date' }" @click="sortBy = 'date'">
-              <i class="bi bi-calendar"></i> Latest
-            </button>
-            <button class="btn btn-outline-secondary" :class="{ active: sortBy === 'popular' }" @click="sortBy = 'popular'">
-              <i class="bi bi-graph-up"></i> Popular
-            </button>
+        <div class="card">
+          <div class="card-header bg-light">
+            <h5 class="card-title mb-0">{{ editMode ? 'Edit Profile' : 'Profile Information' }}</h5>
           </div>
-        </div>
-        
-        <div v-if="loading" class="text-center py-5">
-          <div class="spinner-border" role="status"></div>
-        </div>
-        
-        <div v-else-if="posts.length === 0" class="text-center py-5">
-          <i class="bi bi-file-earmark-text display-1 text-muted"></i>
-          <h4 class="mt-3">No posts yet</h4>
-          <p class="text-muted">This user hasn't published any posts</p>
-        </div>
-        
-        <div v-else class="row g-4">
-          <div v-for="post in sortedPosts" :key="post.id" class="col-md-6">
-            <PostCard :post="post" />
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Edit Profile Modal -->
-    <div class="modal fade" id="editProfileModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Edit Profile</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <form @submit.prevent="updateProfile">
+          <div class="card-body">
+            <div v-if="loading" class="text-center py-3">
+              <div class="spinner-border spinner-border-sm" role="status"></div>
+            </div>
+            <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
+            
+            <!-- View Mode -->
+            <div v-if="!editMode">
+              <div class="row mb-3">
+                <div class="col-sm-3 text-muted">Username</div>
+                <div class="col-sm-9">{{ profile.username || 'Not set' }}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-3 text-muted">Full Name</div>
+                <div class="col-sm-9">{{ profile.displayName || 'Not set' }}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-3 text-muted">Email</div>
+                <div class="col-sm-9">{{ profile.email }}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-3 text-muted">Bio</div>
+                <div class="col-sm-9">{{ profile.bio || 'No bio provided' }}</div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-3 text-muted">Joined</div>
+                <div class="col-sm-9">{{ formatDate(profile.createdAt) }}</div>
+              </div>
+            </div>
+            
+            <!-- Edit Mode -->
+            <form v-else @submit.prevent="saveProfile">
               <div class="mb-3">
-                <label for="displayName" class="form-label">Display Name</label>
-                <input v-model="form.displayName" type="text" class="form-control" id="displayName">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" v-model="form.username">
+              </div>
+              <div class="mb-3">
+                <label for="displayName" class="form-label">Full Name</label>
+                <input type="text" class="form-control" id="displayName" v-model="form.displayName">
               </div>
               <div class="mb-3">
                 <label for="bio" class="form-label">Bio</label>
-                <textarea v-model="form.bio" class="form-control" id="bio" rows="4"></textarea>
+                <textarea class="form-control" id="bio" rows="3" v-model="form.bio"></textarea>
               </div>
-              <div class="d-flex justify-content-end">
-                <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary" :disabled="updating">
-                  {{ updating ? 'Saving...' : 'Save Changes' }}
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" :disabled="saving">
+                  {{ saving ? 'Saving...' : 'Save Changes' }}
                 </button>
+                <button type="button" class="btn btn-outline-secondary" @click="editMode = false">Cancel</button>
               </div>
             </form>
           </div>
         </div>
       </div>
     </div>
-    
-    <!-- Avatar Upload Modal -->
-    <div class="modal fade" id="avatarModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Update Profile Picture</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label for="avatarUrl" class="form-label">Image URL</label>
-              <input v-model="form.avatar" type="url" class="form-control" id="avatarUrl">
-            </div>
-            <div v-if="form.avatar" class="text-center mb-3">
-              <img :src="form.avatar" class="img-thumbnail" style="max-height: 200px;">
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" @click="updateAvatar" :disabled="updating">
-              {{ updating ? 'Saving...' : 'Update Picture' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div v-else class="text-center py-5">
-    <div class="spinner-border" role="status"></div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
-import { db, collection, query, where, onSnapshot, getDocs, doc, getDoc } from '@/firebase';
+import { db, storage } from '@/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import axios from 'axios';
-import PostCard from '@/components/PostCard.vue';
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
-const user = ref(null);
-const posts = ref([]);
+
+const profile = ref({});
 const loading = ref(true);
-const updating = ref(false);
-const sortBy = ref('date');
+const error = ref(null);
+const editMode = ref(false);
+const saving = ref(false);
 
 const form = ref({
+  username: '',
   displayName: '',
-  bio: '',
-  avatar: ''
+  bio: ''
 });
 
-const isOwnProfile = computed(() => 
-  authStore.isAuthenticated && authStore.user.uid === route.params.id
-);
-
-const totalLikes = computed(() => 
-  posts.value.reduce((sum, post) => sum + (post.likes || 0), 0)
-);
-
-const totalViews = computed(() => 
-  posts.value.reduce((sum, post) => sum + (post.views || 0), 0)
-);
-
-const sortedPosts = computed(() => {
-  if (sortBy.value === 'popular') {
-    return [...posts.value].sort((a, b) => (b.views || 0) - (a.views || 0));
-  }
-  return [...posts.value].sort((a, b) => 
-    new Date(b.createdAt?.toDate?.() || b.createdAt) - 
-    new Date(a.createdAt?.toDate?.() || a.createdAt)
-  );
+const isOwnProfile = computed(() => {
+  return authStore.user && authStore.user.uid === route.params.id;
 });
 
-onMounted(async () => {
+const fetchProfile = async () => {
+  loading.value = true;
+  error.value = null;
+  
   try {
-    // Get user data
     const userDoc = await getDoc(doc(db, 'users', route.params.id));
     if (userDoc.exists()) {
-      user.value = { id: userDoc.id, ...userDoc.data() };
+      profile.value = { id: userDoc.id, ...userDoc.data() };
+      
+      // Initialize form with current values
       form.value = {
-        displayName: user.value.displayName || '',
-        bio: user.value.bio || '',
-        avatar: user.value.avatar || ''
+        username: profile.value.username || '',
+        displayName: profile.value.displayName || '',
+        bio: profile.value.bio || ''
       };
+    } else {
+      error.value = 'User not found';
+      router.push('/');
     }
-    
-    // Get user's posts
-    const postsQuery = query(
-      collection(db, 'posts'), 
-      where('authorId', '==', route.params.id),
-      where('status', '==', 'published')
-    );
-    
-    onSnapshot(postsQuery, (snapshot) => {
-      posts.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      loading.value = false;
-    });
-  } catch (error) {
-    console.error('Error loading profile:', error);
+  } catch (err) {
+    console.error('Error fetching profile:', err);
+    error.value = 'Failed to load profile';
+  } finally {
     loading.value = false;
   }
-});
+};
 
-const updateProfile = async () => {
+const saveProfile = async () => {
   if (!isOwnProfile.value) return;
   
-  updating.value = true;
+  saving.value = true;
   try {
-    await axios.put(`/api/users/${authStore.user.uid}/profile`, {
+    await updateDoc(doc(db, 'users', authStore.user.uid), {
+      username: form.value.username,
       displayName: form.value.displayName,
-      bio: form.value.bio
+      bio: form.value.bio,
+      updatedAt: new Date()
     });
     
-    // Update local user data
-    user.value = {
-      ...user.value,
-      displayName: form.value.displayName,
-      bio: form.value.bio
+    // Update local profile
+    profile.value = {
+      ...profile.value,
+      ...form.value
     };
     
-    // Close modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('editProfileModal'));
-    if (modal) modal.hide();
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    // Don't show alert since the update might have succeeded despite the error
+    // Update auth store profile
+    await authStore.fetchProfile();
+    
+    editMode.value = false;
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    error.value = 'Failed to update profile';
   } finally {
-    updating.value = false;
+    saving.value = false;
   }
 };
 
-const updateAvatar = async () => {
-  if (!isOwnProfile.value || !form.value.avatar) return;
+const uploadAvatar = async (event) => {
+  if (!isOwnProfile.value) return;
   
-  updating.value = true;
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  // Check file type and size
+  if (!file.type.match('image.*')) {
+    alert('Please select an image file');
+    return;
+  }
+  
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Image size should be less than 5MB');
+    return;
+  }
+  
+  loading.value = true;
   try {
-    await axios.put(`/api/users/${authStore.user.uid}/avatar`, {
-      avatar: form.value.avatar
+    // Upload to Firebase Storage
+    const avatarRef = storageRef(storage, `avatars/${authStore.user.uid}`);
+    await uploadBytes(avatarRef, file);
+    
+    // Get download URL
+    const downloadURL = await getDownloadURL(avatarRef);
+    
+    // Update user document
+    await updateDoc(doc(db, 'users', authStore.user.uid), {
+      avatar: downloadURL,
+      updatedAt: new Date()
     });
     
-    // Update local user data
-    user.value = {
-      ...user.value,
-      avatar: form.value.avatar
-    };
+    // Update local profile
+    profile.value.avatar = downloadURL;
     
-    // Close modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('avatarModal'));
-    if (modal) modal.hide();
-  } catch (error) {
-    console.error('Error updating avatar:', error);
-    // Don't show alert since the update might have succeeded despite the error
+    // Update auth store profile
+    await authStore.fetchProfile();
+  } catch (err) {
+    console.error('Error uploading avatar:', err);
+    error.value = 'Failed to upload avatar';
   } finally {
-    updating.value = false;
+    loading.value = false;
   }
 };
+
+const formatDate = (timestamp) => {
+  if (!timestamp) return 'Unknown';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  return date.toLocaleDateString();
+};
+
+onMounted(() => {
+  fetchProfile();
+});
 </script>

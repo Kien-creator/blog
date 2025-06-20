@@ -1,16 +1,17 @@
 <template>
   <button 
-    class="btn btn-sm" 
-    :class="{ 'btn-warning': isBookmarked, 'btn-outline-secondary': !isBookmarked }" 
+    class="bookmark-btn" 
+    :class="{ 'active': isBookmarked }" 
     @click="toggleBookmark" 
     :disabled="!authStore.isAuthenticated"
+    :title="isBookmarked ? 'Remove bookmark' : 'Add bookmark'"
   >
     <i :class="['bi', isBookmarked ? 'bi-bookmark-fill' : 'bi-bookmark']"></i>
   </button>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import axios from 'axios';
 
@@ -57,3 +58,32 @@ const toggleBookmark = async () => {
   }
 };
 </script>
+
+<style scoped>
+.bookmark-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: none;
+  background-color: #f8f9fa;
+  color: #6c757d;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.bookmark-btn:hover {
+  background-color: #e9ecef;
+}
+
+.bookmark-btn.active {
+  color: #ffc107;
+}
+
+.bookmark-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>
