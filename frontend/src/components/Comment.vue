@@ -1,0 +1,182 @@
+<template>
+  <div class="comment mb-3" :style="{ 'margin-left': `${level * 30}px` }">
+    <div class="card" :class="{ 'border-start border-primary border-3': level > 0 }">
+      <div class="card-body">
+        <div class="d-flex align-items-start">
+          <img :src="comment.userAvatar || '/default-avatar.png'" 
+               class="rounded-circle me-3" width="40" height="40" alt="Avatar">
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <strong>{{ comment.username }}</strong>
+                <small class="text-muted ms-2">{{ formatTime(comment.createdAt) }}</small>
+              </div>
+              <div class="dropdown" v-if="authStore.isAdmin || comment.userId === authStore.user?.uid">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                  <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu">
+                  <li><button @click="editComment" class="dropdown-item">Edit</button></li>
+                  <li><button @click="deleteComment" class="dropdown-item text-danger">Delete</button></li>
+                </ul>
+              </div>
+            </div>
+            
+            <div v-if="!isEditing">
+              <p class="mb-2">{{ comment.content }}</p>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-link p-0 text-muted" @click="toggleReplyForm">
+                  <i class="bi bi-reply"></i> Reply
+                </button>
+                <button class="btn btn-sm btn-link p-0 text-muted" @click="toggleLike">
+                  <i :class="['bi', isLiked ? 'bi-heart-fill text-danger' : 'bi-heart']"></i>
+                  {{ comment.likes || 0 }}
+                </button>
+              </div>
+            </div>
+            
+            <!-- Edit Form -->
+            <div v-else>
+              <form @submit.prevent="updateComment">
+                <textarea v-model="editContent" class="form-control mb-2" rows="3" required></textarea>
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                  <button type="button" @click="cancelEdit" class="btn btn-sm btn-secondary">Cancel</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Reply Form -->
+        <div v-if="showReplyForm" class="mt-3 ms-5">
+          <form @submit.prevent="submitReply">
+            <div class="d-flex gap-2">
+              <img :src="authStore.profile?.avatar || '/default-avatar.png'" 
+                   class="rounded-circle" width="32" height="32">
+              <div class="flex-grow-1">
+                <textarea v-model="replyContent" class="form-control mb-2" 
+                         rows="2" placeholder="Write a reply..." required></textarea>
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-sm btn-primary" :disabled="!authStore.isAuthenticated">
+                    Reply
+                  </button>
+                  <button type="button" @click="showReplyForm = false" class="btn btn-sm btn-secondary">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Nested Comments -->
+    <div v-if="comment.replies && comment.replies.length > 0" class="mt-2">
+      <Comment v-for="reply in comment.replies" :key="reply.id" 
+               :comment="reply" :level="level + 1" :post-id="postId" />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue';
+import { useAuthStore } from '@/store/auth';
+import axios from 'axios';
+
+const props = defineProps({
+  comment: Object,
+  level: { type: Number, default: 0 },
+  postId: String
+});
+
+const authStore = useAuthStore();
+const showReplyForm = ref(false);
+const replyContent = ref('');
+const isEditing = ref(false);
+const editContent = ref('');
+const isLiked = ref(false);
+
+const formatTime = (timestamp) => {
+  if (!timestamp) return '';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const now = new Date();
+  const diff = now - date;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+};
+
+const toggleReplyForm = () => {
+  if (!authStore.isAuthenticated) {
+    alert('Please login to reply');
+    return;
+  }
+  showReplyForm.value = !showReplyForm.value;
+};
+
+const submitReply = async () => {
+  try {
+    await axios.post('/api/comments', {
+      postId: props.postId,
+      content: replyContent.value,
+      parentId: props.comment.id,
+    });
+    replyContent.value = '';
+    showReplyForm.value = false;
+  } catch (error) {
+    console.error('Error submitting reply:', error);
+  }
+};
+
+const editComment = () => {
+  isEditing.value = true;
+  editContent.value = props.comment.content;
+};
+
+const updateComment = async () => {
+  try {
+    await axios.put(`/api/comments/${props.comment.id}`, {
+      content: editContent.value
+    });
+    isEditing.value = false;
+  } catch (error) {
+    console.error('Error updating comment:', error);
+  }
+};
+
+const cancelEdit = () => {
+  isEditing.value = false;
+  editContent.value = '';
+};
+
+const deleteComment = async () => {
+  if (confirm('Are you sure you want to delete this comment?')) {
+    try {
+      await axios.delete(`/api/comments/${props.comment.id}`);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  }
+};
+
+const toggleLike = async () => {
+  if (!authStore.isAuthenticated) {
+    alert('Please login to like comments');
+    return;
+  }
+  
+  try {
+    await axios.post(`/api/comments/${props.comment.id}/like`);
+    isLiked.value = !isLiked.value;
+  } catch (error) {
+    console.error('Error toggling like:', error);
+  }
+};
+</script>
