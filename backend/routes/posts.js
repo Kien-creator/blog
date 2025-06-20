@@ -117,6 +117,16 @@ router.post('/', verifyToken, async (req, res) => {
   try {
     const { title, content, excerpt, category, tags, status, image, readingTime } = req.body;
     
+    // Check for bad words in title and content
+    const hasBadWordsInTitle = await checkPostContent(title);
+    const hasBadWordsInContent = await checkPostContent(content);
+    
+    // If post contains bad words and user is not admin, set to pending
+    let finalStatus = status || 'published';
+    if ((hasBadWordsInTitle || hasBadWordsInContent) && req.user.role !== 'admin') {
+      finalStatus = 'pending';
+    }
+    
     const postData = {
       title,
       content,
@@ -127,12 +137,13 @@ router.post('/', verifyToken, async (req, res) => {
       authorId: req.user.uid,
       authorName: req.user.name || req.user.email,
       createdAt: new Date(),
-      status: status || 'published',
+      status: finalStatus,
       likes: 0,
       dislikes: 0,
       views: 0,
       comments: 0,
       readingTime: readingTime || Math.ceil(content.split(' ').length / 200),
+      flagged: hasBadWordsInTitle || hasBadWordsInContent
     };
     
     const postRef = await db.collection('posts').add(postData);
@@ -150,20 +161,36 @@ router.put('/:id', verifyToken, async (req, res) => {
     if (!postDoc.exists) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    if (postDoc.data().authorId !== req.user.uid) {
+    
+    const postData = postDoc.data();
+    if (postData.authorId !== req.user.uid && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
     
+    // If only status is being updated (e.g. publishing a draft)
+    if (Object.keys(req.body).length === 1 && req.body.status) {
+      await postRef.update({ 
+        status: req.body.status,
+        updatedAt: new Date()
+      });
+      return res.json({ 
+        id: postRef.id, 
+        status: req.body.status,
+        message: `Post ${req.body.status === 'published' ? 'published' : 'status updated'}`
+      });
+    }
+    
+    // Full post update
     const { title, content, excerpt, category, tags, status, image, readingTime } = req.body;
     const updatedData = {
       title,
       content,
-      excerpt: excerpt || content.substring(0, 150) + '...',
+      excerpt: excerpt || (content ? content.substring(0, 150) + '...' : ''),
       category: category || '',
       tags: tags || [],
       image: image || '',
-      status: status || postDoc.data().status,
-      readingTime: readingTime || Math.ceil(content.split(' ').length / 200),
+      status: status || postData.status,
+      readingTime: readingTime || (content ? Math.ceil(content.split(' ').length / 200) : 5),
       updatedAt: new Date(),
     };
     
@@ -175,13 +202,19 @@ router.put('/:id', verifyToken, async (req, res) => {
   }
 });
 
-router.put('/:id/approve', async (req, res) => {
+router.put('/:id/approve', verifyToken, async (req, res) => {
   try {
-    const user = await auth.verifyIdToken(req.headers.authorization.split('Bearer ')[1]);
-    if (user.role !== 'admin') {
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    if (!userDoc.exists || userDoc.data().role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    await db.collection('posts').doc(req.params.id).update({ status: 'published' });
+    
+    await db.collection('posts').doc(req.params.id).update({ 
+      status: 'published',
+      approvedBy: req.user.uid,
+      approvedAt: new Date()
+    });
+    
     res.json({ message: 'Post approved' });
   } catch (error) {
     console.error('Error approving post:', error);
@@ -189,14 +222,20 @@ router.put('/:id/approve', async (req, res) => {
   }
 });
 
-router.put('/:id/feature', async (req, res) => {
+router.put('/:id/feature', verifyToken, async (req, res) => {
   try {
-    const user = await auth.verifyIdToken(req.headers.authorization.split('Bearer ')[1]);
-    if (user.role !== 'admin') {
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    if (!userDoc.exists || userDoc.data().role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
+    
     const { isFeatured } = req.body;
-    await db.collection('posts').doc(req.params.id).update({ isFeatured });
+    await db.collection('posts').doc(req.params.id).update({ 
+      isFeatured,
+      updatedAt: new Date(),
+      updatedBy: req.user.uid
+    });
+    
     res.json({ message: 'Feature status updated' });
   } catch (error) {
     console.error('Error featuring post:', error);
@@ -270,6 +309,23 @@ router.post('/:id/view', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Check post content for bad words
+const checkPostContent = async (content) => {
+  try {
+    const settingsDoc = await db.collection('settings').doc('content').get();
+    const badWords = settingsDoc.exists ? (settingsDoc.data().badWords || []) : [];
+    
+    if (badWords.length > 0) {
+      const lowerContent = content.toLowerCase();
+      return badWords.some(word => lowerContent.includes(word.toLowerCase()));
+    }
+    return false;
+  } catch (error) {
+    console.error('Error checking content:', error);
+    return false;
+  }
+};
 
 
 

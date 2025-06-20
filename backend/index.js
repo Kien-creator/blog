@@ -10,6 +10,8 @@ const usersRouter = require('./routes/users');
 const notificationsRouter = require('./routes/notifications');
 const commentsRouter = require('./routes/comments');
 const bookmarksRouter = require('./routes/bookmarks');
+const reportsRouter = require('./routes/reports');
+const settingsRouter = require('./routes/settings');
 
 const app = express();
 
@@ -38,6 +40,8 @@ app.use('/api/users', usersRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/comments', commentsRouter);
 app.use('/api/bookmarks', bookmarksRouter);
+app.use('/api/reports', reportsRouter);
+app.use('/api/settings', settingsRouter);
 
 // ---------- serve front‑end ----------
 const frontendPath = path.resolve(__dirname, '../frontend/dist');

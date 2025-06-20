@@ -73,6 +73,30 @@
       </div>
     </div>
 
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item">
+        <button class="nav-link" :class="{ active: activeTab === 'all' }" @click="activeTab = 'all'">
+          All Posts
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" :class="{ active: activeTab === 'published' }" @click="activeTab = 'published'">
+          Published <span class="badge bg-success ms-1">{{ publishedCount }}</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" :class="{ active: activeTab === 'drafts' }" @click="activeTab = 'drafts'">
+          Drafts <span class="badge bg-warning ms-1">{{ draftCount }}</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" :class="{ active: activeTab === 'pending' }" @click="activeTab = 'pending'">
+          Pending <span class="badge bg-info ms-1">{{ pendingCount }}</span>
+        </button>
+      </li>
+    </ul>
+
     <!-- Posts List -->
     <div v-if="loading" class="text-center py-5">
       <div class="spinner-border" role="status"></div>
@@ -100,8 +124,13 @@
                   <i class="bi bi-three-dots"></i>
                 </button>
                 <ul class="dropdown-menu">
-                  <li><router-link :to="`/post/${post.id}`" class="dropdown-item">View</router-link></li>
+                  <li v-if="post.status === 'published'">
+                    <router-link :to="`/post/${post.id}`" class="dropdown-item">View</router-link>
+                  </li>
                   <li><router-link :to="`/post/${post.id}/edit`" class="dropdown-item">Edit</router-link></li>
+                  <li v-if="post.status === 'draft'">
+                    <button @click="publishPost(post.id)" class="dropdown-item">Publish</button>
+                  </li>
                   <li><hr class="dropdown-divider"></li>
                   <li><button @click="deletePost(post.id)" class="dropdown-item text-danger">Delete</button></li>
                 </ul>
@@ -129,7 +158,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebase';
@@ -141,9 +170,24 @@ const loading = ref(true);
 const searchQuery = ref('');
 const sortBy = ref('createdAt');
 const statusFilter = ref('');
+const activeTab = ref('all');
+
+// Watch for tab changes and update status filter
+watch(activeTab, (newTab) => {
+  if (newTab === 'all') {
+    statusFilter.value = '';
+  } else if (newTab === 'published') {
+    statusFilter.value = 'published';
+  } else if (newTab === 'drafts') {
+    statusFilter.value = 'draft';
+  } else if (newTab === 'pending') {
+    statusFilter.value = 'pending';
+  }
+});
 
 const publishedCount = computed(() => posts.value.filter(p => p.status === 'published').length);
 const draftCount = computed(() => posts.value.filter(p => p.status === 'draft').length);
+const pendingCount = computed(() => posts.value.filter(p => p.status === 'pending').length);
 const totalViews = computed(() => posts.value.reduce((sum, p) => sum + (p.views || 0), 0));
 
 const filteredPosts = computed(() => {
@@ -152,8 +196,8 @@ const filteredPosts = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     result = result.filter(post => 
-      post.title.toLowerCase().includes(query) || 
-      post.content.toLowerCase().includes(query)
+      post.title?.toLowerCase().includes(query) || 
+      post.content?.toLowerCase().includes(query)
     );
   }
   
@@ -166,7 +210,8 @@ const filteredPosts = computed(() => {
       case 'views': return (b.views || 0) - (a.views || 0);
       case 'likes': return (b.likes || 0) - (a.likes || 0);
       case 'comments': return (b.comments || 0) - (a.comments || 0);
-      default: return new Date(b.createdAt) - new Date(a.createdAt);
+      default: return new Date(b.createdAt?.toDate?.() || b.createdAt) - 
+                     new Date(a.createdAt?.toDate?.() || a.createdAt);
     }
   });
 });
@@ -185,6 +230,15 @@ const deletePost = async (postId) => {
       console.error('Error deleting post:', error);
       alert('Failed to delete post');
     }
+  }
+};
+
+const publishPost = async (postId) => {
+  try {
+    await axios.put(`/api/posts/${postId}`, { status: 'published' });
+  } catch (error) {
+    console.error('Error publishing post:', error);
+    alert('Failed to publish post');
   }
 };
 

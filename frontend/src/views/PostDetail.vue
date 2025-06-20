@@ -121,20 +121,26 @@ onMounted(async () => {
       where('parentId', '==', null),
       orderBy('createdAt', 'desc')
     );
-    onSnapshot(commentsQuery, async (snapshot) => {
-      comments.value = await Promise.all(
-        snapshot.docs.map(async (doc) => {
-          const commentData = { id: doc.id, ...doc.data() };
-          const repliesQuery = query(
-            collection(db, 'comments'),
-            where('parentId', '==', doc.id),
-            orderBy('createdAt', 'asc')
-          );
-          const repliesSnapshot = await getDocs(repliesQuery);
-          commentData.replies = repliesSnapshot.docs.map(reply => ({ id: reply.id, ...reply.data() }));
-          return commentData;
-        })
+    
+    // Use a separate function to fetch replies for a comment
+    const fetchReplies = async (commentId) => {
+      const repliesQuery = query(
+        collection(db, 'comments'),
+        where('parentId', '==', commentId),
+        orderBy('createdAt', 'asc')
       );
+      const repliesSnapshot = await getDocs(repliesQuery);
+      return repliesSnapshot.docs.map(reply => ({ id: reply.id, ...reply.data() }));
+    };
+    
+    onSnapshot(commentsQuery, async (snapshot) => {
+      const commentPromises = snapshot.docs.map(async (doc) => {
+        const commentData = { id: doc.id, ...doc.data() };
+        commentData.replies = await fetchReplies(doc.id);
+        return commentData;
+      });
+      
+      comments.value = await Promise.all(commentPromises);
       loadingComments.value = false;
       commentsError.value = null;
     }, (error) => {
@@ -163,14 +169,20 @@ const submitComment = async () => {
   
   submitting.value = true;
   try {
-    await axios.post('/api/comments', {
+    const response = await axios.post('/api/comments', {
       postId: route.params.id,
       content: commentForm.value.content,
     });
+    
+    // Add the new comment to the top of the comments list
+    comments.value.unshift({
+      ...response.data,
+      replies: []
+    });
+    
     commentForm.value.content = '';
   } catch (error) {
     console.error('Error submitting comment:', error);
-    alert('Failed to post comment');
   } finally {
     submitting.value = false;
   }

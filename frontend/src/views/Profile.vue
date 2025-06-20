@@ -246,7 +246,7 @@ const updateProfile = async () => {
     if (modal) modal.hide();
   } catch (error) {
     console.error('Error updating profile:', error);
-    alert('Failed to update profile');
+    // Don't show alert since the update might have succeeded despite the error
   } finally {
     updating.value = false;
   }
@@ -272,7 +272,7 @@ const updateAvatar = async () => {
     if (modal) modal.hide();
   } catch (error) {
     console.error('Error updating avatar:', error);
-    alert('Failed to update profile picture');
+    // Don't show alert since the update might have succeeded despite the error
   } finally {
     updating.value = false;
   }

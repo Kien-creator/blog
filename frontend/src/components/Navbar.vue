@@ -64,7 +64,7 @@ import { ref, onMounted } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'vue-router';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/firebase';
+import { db, auth, onAuthStateChanged } from '@/firebase';
 import NotificationDropdown from './NotificationDropdown.vue';
 
 const authStore = useAuthStore();
@@ -73,17 +73,27 @@ const router = useRouter();
 const unread = ref(0);
 
 onMounted(() => {
-  if (authStore.isAuthenticated) {
-    const q = query(
-      collection(db, 'notifications'),
-      where('userId', '==', authStore.user.uid),
-      where('isRead', '==', false)
-    );
-    
-    onSnapshot(q, (snapshot) => {
-      unread.value = snapshot.docs.length;
-    });
-  }
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.uid),
+        where('isRead', '==', false)
+      );
+      
+      try {
+        onSnapshot(q, (snapshot) => {
+          unread.value = snapshot.docs.length;
+        }, (error) => {
+          console.error('Error in notifications snapshot:', error);
+        });
+      } catch (error) {
+        console.error('Error setting up notifications listener:', error);
+      }
+    }
+  });
+  
+  return () => unsubscribe();
 });
 
 const logout = async () => {

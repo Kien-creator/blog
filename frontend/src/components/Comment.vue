@@ -72,16 +72,27 @@
       </div>
     </div>
     
-    <!-- Nested Comments -->
+    <!-- Replies Toggle -->
     <div v-if="comment.replies && comment.replies.length > 0" class="mt-2">
-      <Comment v-for="reply in comment.replies" :key="reply.id" 
-               :comment="reply" :level="level + 1" :post-id="postId" />
+      <button v-if="!showReplies" 
+              @click="showReplies = true" 
+              class="btn btn-sm btn-link text-muted">
+        <i class="bi bi-chat-square-text me-1"></i>
+        Show {{ comment.replies.length }} {{ comment.replies.length === 1 ? 'reply' : 'replies' }}
+      </button>
+      <div v-if="showReplies">
+        <button @click="showReplies = false" class="btn btn-sm btn-link text-muted mb-2">
+          <i class="bi bi-chevron-up me-1"></i>Hide replies
+        </button>
+        <Comment v-for="reply in comment.replies" :key="reply.id" 
+                :comment="reply" :level="level + 1" :post-id="postId" />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import axios from 'axios';
 
@@ -93,10 +104,28 @@ const props = defineProps({
 
 const authStore = useAuthStore();
 const showReplyForm = ref(false);
+const showReplies = ref(false);
 const replyContent = ref('');
 const isEditing = ref(false);
 const editContent = ref('');
 const isLiked = ref(false);
+
+// Check if user has liked this comment
+const checkLikeStatus = async () => {
+  if (!authStore.isAuthenticated) return;
+  
+  try {
+    const response = await axios.get(`/api/comments/${props.comment.id}/like`);
+    isLiked.value = response.data.liked;
+  } catch (error) {
+    console.error('Error checking like status:', error);
+  }
+};
+
+// Call on component mount
+onMounted(() => {
+  checkLikeStatus();
+});
 
 const formatTime = (timestamp) => {
   if (!timestamp) return '';
@@ -123,11 +152,19 @@ const toggleReplyForm = () => {
 
 const submitReply = async () => {
   try {
-    await axios.post('/api/comments', {
+    const response = await axios.post('/api/comments', {
       postId: props.postId,
       content: replyContent.value,
       parentId: props.comment.id,
     });
+    
+    // Add the new reply to the parent comment's replies array
+    if (!props.comment.replies) props.comment.replies = [];
+    props.comment.replies.push(response.data);
+    
+    // Show replies after adding a new one
+    showReplies.value = true;
+    
     replyContent.value = '';
     showReplyForm.value = false;
   } catch (error) {
@@ -173,8 +210,12 @@ const toggleLike = async () => {
   }
   
   try {
-    await axios.post(`/api/comments/${props.comment.id}/like`);
+    const response = await axios.post(`/api/comments/${props.comment.id}/like`);
     isLiked.value = !isLiked.value;
+    
+    // Update the likes count in the comment object
+    if (props.comment.likes === undefined) props.comment.likes = 0;
+    props.comment.likes = response.data.likes;
   } catch (error) {
     console.error('Error toggling like:', error);
   }

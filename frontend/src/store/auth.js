@@ -77,4 +77,12 @@ export const useAuthStore = defineStore('auth', {
   }
 });
 
-// Setup axios in
+// Setup axios interceptor
+axios.interceptors.request.use(async (config) => {
+  const authStore = useAuthStore();
+  if (authStore.user) {
+    const token = await authStore.user.getIdToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
